@@ -12,21 +12,29 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
-pub fn routes() -> impl Into<Vec<Route>> {
-    todo!()
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket::response::Redirect;
+use rocket_oauth2::{OAuth2, TokenResponse};
+use tracing::error;
+
+pub fn routes() -> impl Into<Vec<rocket::Route>> {
+    rocket::routes![google_login, google_callback]
 }
 
-/// User information to be retrieved from Google
 #[derive(serde::Deserialize)]
-struct GoogleUserInfo {
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    mail: String,
+pub struct GoogleUser {
+    pub id: String,
+    pub email: String,
+    pub verified_email: bool,
+    pub name: String,
+    pub given_name: String,
+    pub family_name: String,
+    pub picture: String,
+    pub locale: String,
 }
 
 #[rocket::get("/login/google")]
-fn google_login(oauth2: OAuth2<GoogleUserInfo>, cookies: &CookieJar<'_>) -> Redirect {
+fn google_login(oauth2: OAuth2<GoogleUser>, cookies: &CookieJar<'_>) -> Redirect {
     oauth2
         .get_redirect(
             cookies,
@@ -35,25 +43,36 @@ fn google_login(oauth2: OAuth2<GoogleUserInfo>, cookies: &CookieJar<'_>) -> Redi
         .unwrap()
 }
 
-#[get("/auth/google")]
-async fn github_callback(
-    token: TokenResponse<GitHubUserInfo>,
+#[rocket::get("/auth/google")]
+async fn google_callback(
+    token: TokenResponse<GoogleUser>,
     cookies: &CookieJar<'_>,
-) -> Result<Redirect, Debug<Error>> {
-    // Use the token to retrieve the user's GitHub account information.
-    let user_info: GitHubUserInfo = reqwest::Client::builder()
-        .build()
-        .context("failed to build reqwest client")?
-        .get("https://api.github.com/user")
-        .header(AUTHORIZATION, format!("token {}", token.access_token()))
-        .header(ACCEPT, "application/vnd.github.v3+json")
-        .header(USER_AGENT, "rocket_oauth2 demo application")
+) -> Result<Redirect, Status> {
+    let Some(id_token) = token.as_value().get("id_token") else {
+        error!("Cannot get id_token from google's response");
+        return Err(Status::InternalServerError);
+    };
+    let user_info: GoogleUser = match reqwest::Client::new()
+        .get(format!(
+            "https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token={}",
+            token.access_token()
+        ))
+        .bearer_auth(id_token)
         .send()
         .await
-        .context("failed to complete request")?
-        .json()
-        .await
-        .context("failed to deserialize response")?;
+    {
+        Ok(res) => match res.json().await {
+            Ok(user_info) => user_info,
+            Err(e) => {
+                error!(?e, "Cannot turn user_info as json");
+                return Err(Status::InternalServerError);
+            }
+        },
+        Err(e) => {
+            error!(?e, "Cannot get request from google oauth2 userinfo api");
+            return Err(Status::Unauthorized);
+        }
+    };
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
