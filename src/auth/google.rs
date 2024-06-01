@@ -80,5 +80,10 @@ async fn google_callback(
             .same_site(SameSite::Lax)
             .build(),
     );
+    cookies.add_private(
+        Cookie::build(("mail", user_info.email))
+            .same_site(SameSite::Lax)
+            .build(),
+    );
     Ok(Redirect::to("/"))
 }

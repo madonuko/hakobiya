@@ -22,32 +22,32 @@ use rocket_db_pools::{sqlx::PgPool, Database};
 #[database("hakobiya")]
 pub struct Hakobiya(PgPool);
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, serde::Serialize)]
 pub struct User {
     pub name: String,
     pub mail: String,
 }
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, serde::Serialize)]
 pub struct Event {
     pub id: usize,
     pub name: String,
 }
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, serde::Serialize)]
 pub struct SubEvent {
     pub id: usize,
     pub event: usize,
     pub comment: String,
 }
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, serde::Serialize)]
 pub struct JoinEvent {
     pub usrmail: String,
     pub event: usize,
 }
 
-#[derive(sqlx::FromRow, Debug)]
+#[derive(sqlx::FromRow, Debug, serde::Serialize)]
 pub struct JoinSubEvent {
     pub usrmail: String,
     pub subevt: usize,
@@ -74,5 +74,18 @@ impl<'r> request::FromRequest<'r> for User {
         }
 
         request::Outcome::Forward(Status::Unauthorized)
+    }
+}
+
+pub async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
+    match Hakobiya::fetch(&rocket) {
+        Some(db) => match rocket_db_pools::sqlx::migrate!().run(&**db).await {
+            Ok(_) => Ok(rocket),
+            Err(e) => {
+                tracing::error!("Fail to init db: {e}");
+                Err(rocket)
+            }
+        },
+        None => Err(rocket),
     }
 }

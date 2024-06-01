@@ -14,42 +14,54 @@
 
 pub mod auth;
 pub mod db;
-use std::path::Path;
 
 use rocket::{
-    fs::NamedFile,
-    http::{Cookie, CookieJar, SameSite},
+    http::{Cookie, CookieJar},
     response::Redirect,
 };
-use rocket_oauth2::{OAuth2, TokenResponse};
+use rocket_db_pools::Database;
+use rocket_dyn_templates::Template;
+use rocket_oauth2::OAuth2;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[rocket::get("/")]
-fn index(user: db::User) -> String {
-    format!("Hi, {}!", user.name)
+fn index(user: db::User) -> Template {
+    Template::render("index", &user)
 }
 
 #[rocket::get("/", rank = 2)]
-async fn index_anonymous() -> NamedFile {
-    let path = Path::new(rocket::fs::relative!("static")).join("login-required.html");
-    NamedFile::open(path)
-        .await
-        .expect("No static/login-required.html")
+fn index_anonymous() -> &'static str {
+    include_str!("../static/login-required.html")
 }
 
 #[rocket::get("/logout")]
 fn logout(cookies: &CookieJar<'_>) -> Redirect {
     cookies.remove(Cookie::from("username"));
+    cookies.remove(Cookie::from("mail"));
     Redirect::to("/")
+}
+
+#[rocket::catch(401)] // Unauthorized
+fn unauthorized_access() -> Redirect {
+    Redirect::to(rocket::uri!(index_anonymous()))
 }
 
 #[rocket::launch]
 fn rocket() -> _ {
+    dotenv::dotenv().ok();
+    tracing_subscriber::Registry::default()
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(tracing_logfmt::layer())
+        .init();
+    tracing::info!("Launching rocket 🚀");
     rocket::build()
+        .attach(db::Hakobiya::init())
+        .attach(rocket::fairing::AdHoc::try_on_ignite(
+            "Migrations",
+            db::migrate,
+        ))
         .mount("/", rocket::routes![index, index_anonymous, logout])
-        .mount(
-            "/",
-            rocket::fs::FileServer::from(rocket::fs::relative!("static")),
-        )
-        // The string "github" here matches [default.oauth.github] in `Rocket.toml`
-        .attach(OAuth2::<Google>::fairing("google"))
+        .mount("/", auth::google::routes())
+        .register("/", rocket::catchers![unauthorized_access])
+        .attach(OAuth2::<auth::google::GoogleUser>::fairing("google"))
 }
