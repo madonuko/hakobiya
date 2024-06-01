@@ -1,0 +1,9 @@
+[default.databases.hakobiya]
+url = "postgres://username@passwd/postgres"
+
+[default.oauth.google]
+provider = "Google"
+client_id = "..."
+client_secret = "..."
+redirect_uri = "http://localhost:8000/auth/google"
+
