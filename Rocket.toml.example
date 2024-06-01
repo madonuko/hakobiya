@@ -1,9 +1,16 @@
+[default]
+template_dir = "static/"
+secret_key = ""
+
+[default.tls]
+key = ""
+certs = ""
+
 [default.databases.hakobiya]
-url = "postgres://username@passwd/postgres"
+url = "postgres://username:password@localhost:5432/hakobiya"
 
 [default.oauth.google]
 provider = "Google"
 client_id = "..."
 client_secret = "..."
-redirect_uri = "http://localhost:8000/auth/google"
-
+redirect_uri = "https://localhost:8000/auth/google"

@@ -6,17 +6,17 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-chrono = "0.4.38"
 dotenv = "0.15.0"
-image = "0.25.1"
+image = { version = "0.25.1", default-features = false }
 qrcode = "0.14.0"
 reqwest = { version = "0.12.4", features = ["json"] }
-rocket = { version = "0.5.1", features = ["json", "serde_json"] }
+rocket = { version = "0.5.1", default-features = false }
 rocket_db_pools = { version = "0.2.0", features = ["sqlx_postgres"] }
 rocket_dyn_templates = { version = "0.2.0", features = ["tera"] }
 rocket_oauth2 = "0.5.0"
-serde = "1.0.203"
-sqlx = { version = "0.7.4", features = ["macros"] }
+serde = { version = "1.0.203", default-features = false }
+serde_json = { version = "1.0.117", default-features = false }
+sqlx = { version = "0.7.4", default-features = false, features = ["macros", "migrate"] }
 tracing = "0.1.40"
 tracing-logfmt = "0.3.4"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }

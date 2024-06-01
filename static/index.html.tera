@@ -1,4 +1,4 @@
 <h1>Hakobiya</h1>
 
-<p>User: {{ user.name }}</p>
-<p>Mail: {{ user.mail }}</p>
+<p>User: {{ name }}</p>
+<p>Mail: {{ mail }}</p>

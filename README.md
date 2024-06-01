@@ -1,6 +1,6 @@
 # Hakobiya
 
-Hakobiya is a website for mass-sheduling events for many people at once efficiently.
+Hakobiya is a website for mass-sheduling events for many people at once efficiently.  
 Hakobiya是一個可以同時間為很多人排事件的一個網站。
 
 ## License

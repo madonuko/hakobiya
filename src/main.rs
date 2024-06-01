@@ -30,8 +30,11 @@ fn index(user: db::User) -> Template {
 }
 
 #[rocket::get("/", rank = 2)]
-fn index_anonymous() -> &'static str {
-    include_str!("../static/login-required.html")
+fn index_anonymous() -> (rocket::http::ContentType, &'static str) {
+    (
+        rocket::http::ContentType::HTML,
+        include_str!("../static/login-required.html"),
+    )
 }
 
 #[rocket::get("/logout")]
@@ -49,9 +52,13 @@ fn unauthorized_access() -> Redirect {
 #[rocket::launch]
 fn rocket() -> _ {
     dotenv::dotenv().ok();
+    #[cfg(not(debug_assertions))]
+    let loglayer = tracing_logfmt::layer();
+    #[cfg(debug_assertions)]
+    let loglayer = tracing_subscriber::fmt::layer();
     tracing_subscriber::Registry::default()
         .with(tracing_subscriber::EnvFilter::from_default_env())
-        .with(tracing_logfmt::layer())
+        .with(loglayer)
         .init();
     tracing::info!("Launching rocket 🚀");
     rocket::build()
@@ -60,6 +67,7 @@ fn rocket() -> _ {
             "Migrations",
             db::migrate,
         ))
+        .attach(Template::fairing())
         .mount("/", rocket::routes![index, index_anonymous, logout])
         .mount("/", auth::google::routes())
         .register("/", rocket::catchers![unauthorized_access])

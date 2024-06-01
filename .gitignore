@@ -2,3 +2,5 @@
 .env
 Rocket.toml
 *.log
+csr.pem
+key.pem

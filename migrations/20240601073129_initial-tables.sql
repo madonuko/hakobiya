@@ -13,27 +13,27 @@
 --
 CREATE TABLE users (
     name    VARCHAR(255) NOT NULL,
-    mail    VARCHAR(255) NOT NULL PRIMARY KEY,
+    mail    VARCHAR(255) NOT NULL PRIMARY KEY
 );
 
 CREATE TABLE events (
     id      SERIAL NOT NULL PRIMARY KEY,
-    name    TEXT NOT NULL,
+    name    TEXT NOT NULL
 );
 
 CREATE TABLE subevents (
     id      SERIAL NOT NULL PRIMARY KEY,
     event   SERIAL NOT NULL REFERENCES events(id),
-    comment TEXT NOT NULL,
+    comment TEXT NOT NULL
 );
 
 CREATE TABLE joinevents (
     usrmail VARCHAR(255) NOT NULL REFERENCES users(mail),
-    event   SERIAL NOT NULL REFERENCES events(id),
+    event   SERIAL NOT NULL REFERENCES events(id)
 );
 
 CREATE TABLE joinsubevents (
     usrmail VARCHAR(255) NOT NULL REFERENCES users(mail),
-    subevt  SERIAL NOT NULL REFERENCES subevent(id),
-    scanned BOOLEAN NOT NULL,
+    subevt  SERIAL NOT NULL REFERENCES subevents(id),
+    scanned BOOLEAN NOT NULL
 );

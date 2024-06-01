@@ -23,24 +23,13 @@ pub fn routes() -> impl Into<Vec<rocket::Route>> {
 
 #[derive(serde::Deserialize)]
 pub struct GoogleUser {
-    pub id: String,
-    pub email: String,
-    pub verified_email: bool,
     pub name: String,
-    pub given_name: String,
-    pub family_name: String,
-    pub picture: String,
-    pub locale: String,
+    pub email: String,
 }
 
 #[rocket::get("/login/google")]
 fn google_login(oauth2: OAuth2<GoogleUser>, cookies: &CookieJar<'_>) -> Redirect {
-    oauth2
-        .get_redirect(
-            cookies,
-            &[".../auth/userinfo.email", ".../auth/userinfo.profile"],
-        )
-        .unwrap()
+    oauth2.get_redirect(cookies, &["email", "profile"]).unwrap()
 }
 
 #[rocket::get("/auth/google")]
@@ -48,16 +37,11 @@ async fn google_callback(
     token: TokenResponse<GoogleUser>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Status> {
-    let Some(id_token) = token.as_value().get("id_token") else {
-        error!("Cannot get id_token from google's response");
-        return Err(Status::InternalServerError);
-    };
     let user_info: GoogleUser = match reqwest::Client::new()
         .get(format!(
-            "https://www.googleapis.com/oauth2/v1/userinfo?alt=json&access_token={}",
-            token.access_token()
+            "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",
         ))
-        .bearer_auth(id_token)
+        .bearer_auth(token.access_token())
         .send()
         .await
     {
