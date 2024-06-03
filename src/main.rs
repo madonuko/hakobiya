@@ -19,14 +19,18 @@ use rocket::{
     http::{Cookie, CookieJar},
     response::Redirect,
 };
-use rocket_db_pools::Database;
 use rocket_dyn_templates::Template;
 use rocket_oauth2::OAuth2;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[rocket::get("/")]
-fn index(user: db::User) -> Template {
-    Template::render("index", &user)
+fn index(user: db::User, db: &rocket::State<sea_orm::DatabaseConnection>) -> Template {
+    Template::render(
+        "index",
+        rocket_dyn_templates::context! {
+            user
+        },
+    )
 }
 
 #[rocket::get("/", rank = 2)]
@@ -50,7 +54,7 @@ fn unauthorized_access() -> Redirect {
 }
 
 #[rocket::launch]
-fn rocket() -> _ {
+async fn rocket() -> _ {
     dotenv::dotenv().ok();
     #[cfg(not(debug_assertions))]
     let loglayer = tracing_logfmt::layer();
@@ -60,13 +64,13 @@ fn rocket() -> _ {
         .with(tracing_subscriber::EnvFilter::from_default_env())
         .with(loglayer)
         .init();
-    tracing::info!("Launching rocket 🚀");
+
+    tracing::info!("📚 Setting up sea_orm database");
+    let db = db::set_up_db().await.expect("Cannot setup db");
+
+    tracing::info!("🚀 Launching rocket");
     rocket::build()
-        .attach(db::Hakobiya::init())
-        .attach(rocket::fairing::AdHoc::try_on_ignite(
-            "Migrations",
-            db::migrate,
-        ))
+        .manage(db)
         .attach(Template::fairing())
         .mount("/", rocket::routes![index, index_anonymous, logout])
         .mount("/", auth::google::routes())

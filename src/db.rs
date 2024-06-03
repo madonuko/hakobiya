@@ -12,11 +12,19 @@
 // If not, see <https://www.gnu.org/licenses/>.
 //
 
+use migration::MigratorTrait;
 use rocket::{
     http::{CookieJar, Status},
     request,
 };
 use rocket_db_pools::{sqlx::PgPool, Database};
+use sea_orm::ConnectionTrait;
+
+static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
+    std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined")
+});
+
+const DB_NAME: &'static str = "hakobiya";
 
 #[derive(Database)]
 #[database("hakobiya")]
@@ -77,15 +85,20 @@ impl<'r> request::FromRequest<'r> for User {
     }
 }
 
-pub async fn migrate(rocket: rocket::Rocket<rocket::Build>) -> rocket::fairing::Result {
-    match Hakobiya::fetch(&rocket) {
-        Some(db) => match rocket_db_pools::sqlx::migrate!().run(&**db).await {
-            Ok(_) => Ok(rocket),
-            Err(e) => {
-                tracing::error!("Fail to init db: {e}");
-                Err(rocket)
-            }
-        },
-        None => Err(rocket),
-    }
+pub(super) async fn set_up_db() -> Result<sea_orm::DatabaseConnection, sea_orm::DbErr> {
+    let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
+    // create db if not exists
+    db.execute(sea_orm::Statement::from_string(
+        db.get_database_backend(),
+        format!(
+            r#"SELECT 'CREATE DATABASE {DB_NAME}'
+        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{DB_NAME}')\gexec"#
+        ),
+    ))
+    .await?;
+
+    let url = format!("{}/{DB_NAME}", *DATABASE_URL);
+    let db = sea_orm::Database::connect(&url).await?;
+    migration::Migrator::up(&db, None).await?;
+    Ok(db)
 }

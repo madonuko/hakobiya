@@ -1,4 +1,15 @@
-<h1>Hakobiya</h1>
+{% extends "base" %}
 
-<p>User: {{ name }}</p>
-<p>Mail: {{ mail }}</p>
+{% block title %} Home Page {% endblock title %}
+
+{% block content %}
+<h1>Hakobiya — Home Page</h1>
+
+<p>User: {{ user.name }}</p>
+<p>Mail: {{ user.mail }}</p>
+
+<div id="events">
+  <h2>Events that you hold</h2>
+  {# idk #}
+</div>
+{% endblock content %}

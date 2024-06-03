@@ -1,17 +1,12 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Hakobiya — Login Required</title>
-    <!-- <link rel="stylesheet" href="style.css" /> -->
-  </head>
+{% extends "base" %}
 
-  <body>
-    <h1>Hakobiya</h1>
+{% block title %} Login Required {% endblock title %}
 
-    <h3>You need to login:</h3>
-    <ul>
-      <li><a href="/login/google">Google</a></li>
-    </ul>
-  </body>
-</html>
+{% block content %}
+<h1>Hakobiya — Login Required</h1>
+
+<h3>You need to login:</h3>
+<ul>
+  <li><a href="/login/google">Google</a></li>
+</ul>
+{% endblock content %}
