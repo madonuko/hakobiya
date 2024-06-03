@@ -8,8 +8,21 @@
 <p>User: {{ user.name }}</p>
 <p>Mail: {{ user.mail }}</p>
 
-<div id="events">
+<div id="hevents">
   <h2>Events that you hold</h2>
-  {# idk #}
+  <ul>
+    {% for event in hevents %}
+      <li><a href="/hevent/{{ event.id }}">{{ event.name }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div id="jevents">
+  <h2>Events that you join</h2>
+  <ul>
+    {% for event in hevents %}
+      <li><a href="/jevent/{{ event.id }}">{{ event.name }}</a></li>
+    {% endfor %}
+  </ul>
 </div>
 {% endblock content %}
