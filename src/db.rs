@@ -17,8 +17,16 @@ use rocket::{
     http::{CookieJar, Status},
     request,
 };
-use rocket_db_pools::{sqlx::PgPool, Database};
-use sea_orm::ConnectionTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+
+pub use entities::event::Model as Event;
+pub use entities::hold_event::Model as HoldEvent;
+pub use entities::join_event::Model as JoinEvent;
+pub use entities::join_sub_event::Model as JoinSubEvent;
+pub use entities::sub_event::Model as SubEvent;
+pub use entities::user::Model as User;
+
+use crate::entities;
 
 static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
     std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined")
@@ -26,47 +34,13 @@ static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(
 
 const DB_NAME: &'static str = "hakobiya";
 
-#[derive(Database)]
-#[database("hakobiya")]
-pub struct Hakobiya(PgPool);
-
-#[derive(sqlx::FromRow, Debug, serde::Serialize)]
-pub struct User {
-    pub name: String,
-    pub mail: String,
-}
-
-#[derive(sqlx::FromRow, Debug, serde::Serialize)]
-pub struct Event {
-    pub id: usize,
-    pub name: String,
-}
-
-#[derive(sqlx::FromRow, Debug, serde::Serialize)]
-pub struct SubEvent {
-    pub id: usize,
-    pub event: usize,
-    pub comment: String,
-}
-
-#[derive(sqlx::FromRow, Debug, serde::Serialize)]
-pub struct JoinEvent {
-    pub usrmail: String,
-    pub event: usize,
-}
-
-#[derive(sqlx::FromRow, Debug, serde::Serialize)]
-pub struct JoinSubEvent {
-    pub usrmail: String,
-    pub subevt: usize,
-    pub scanned: bool,
-}
-
 #[rocket::async_trait]
 impl<'r> request::FromRequest<'r> for User {
     type Error = ();
 
-    async fn from_request(request: &'r request::Request<'_>) -> request::Outcome<User, ()> {
+    async fn from_request(
+        request: &'r request::Request<'_>,
+    ) -> request::Outcome<User, ()> {
         let cookies = request
             .guard::<&CookieJar<'_>>()
             .await
@@ -75,13 +49,31 @@ impl<'r> request::FromRequest<'r> for User {
             .get_private("username")
             .zip(cookies.get_private("mail"))
         {
-            return request::Outcome::Success(User {
-                name: username.value().to_string(),
-                mail: mail.value().to_string(),
-            });
+            let db = request
+                .guard::<&rocket::State<sea_orm::DatabaseConnection>>()
+                .await
+                .expect("get db");
+            let db = db as &sea_orm::DatabaseConnection;
+            let (name, mail) = (username.value().to_string(), mail.value().to_string());
+            let Some(user) = crate::orm::User::find()
+                .filter(entities::user::Column::Mail.contains(&mail))
+                .one(db)
+                .await
+                .expect("find user from request")
+            else {
+                let newuser = entities::user::ActiveModel {
+                    id: sea_orm::ActiveValue::NotSet,
+                    name: sea_orm::ActiveValue::Set(name),
+                    mail: sea_orm::ActiveValue::Set(mail),
+                };
+                tracing::info!(?newuser, "insert new user");
+                let user = newuser.insert(db).await.expect("insert new user");
+                return request::Outcome::Success(user);
+            };
+            request::Outcome::Success(user)
+        } else {
+            request::Outcome::Forward(Status::Unauthorized)
         }
-
-        request::Outcome::Forward(Status::Unauthorized)
     }
 }
 

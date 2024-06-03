@@ -14,7 +14,9 @@
 
 pub mod auth;
 pub mod db;
+pub mod entities;
 
+pub use entities::prelude as orm;
 use rocket::{
     http::{Cookie, CookieJar},
     response::Redirect,
