@@ -1,5 +1,5 @@
 [default]
-template_dir = "static/"
+template_dir = "templates/"
 secret_key = ""
 
 [default.tls]

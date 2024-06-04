@@ -17,7 +17,7 @@ use rocket::{
     http::{CookieJar, Status},
     request,
 };
-use sea_orm::{ActiveModelTrait, ColumnTrait, ConnectionTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 pub use entities::event::Model as Event;
 pub use entities::hold_event::Model as HoldEvent;
@@ -32,15 +32,11 @@ static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(
     std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined")
 });
 
-const DB_NAME: &'static str = "hakobiya";
-
 #[rocket::async_trait]
 impl<'r> request::FromRequest<'r> for User {
     type Error = ();
 
-    async fn from_request(
-        request: &'r request::Request<'_>,
-    ) -> request::Outcome<User, ()> {
+    async fn from_request(request: &'r request::Request<'_>) -> request::Outcome<User, ()> {
         let cookies = request
             .guard::<&CookieJar<'_>>()
             .await
@@ -78,19 +74,18 @@ impl<'r> request::FromRequest<'r> for User {
 }
 
 pub(super) async fn set_up_db() -> Result<sea_orm::DatabaseConnection, sea_orm::DbErr> {
-    let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
+    // let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
     // create db if not exists
-    db.execute(sea_orm::Statement::from_string(
-        db.get_database_backend(),
-        format!(
-            r#"SELECT 'CREATE DATABASE {DB_NAME}'
-        WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{DB_NAME}')\gexec"#
-        ),
-    ))
-    .await?;
+    // db.execute(sea_orm::Statement::from_string(
+    //     db.get_database_backend(),
+    //     format!(
+    //         r#"SELECT 'CREATE DATABASE {DB_NAME}'
+    //     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{DB_NAME}')\gexec"#
+    //     ),
+    // ))
+    // .await?;
 
-    let url = format!("{}/{DB_NAME}", *DATABASE_URL);
-    let db = sea_orm::Database::connect(&url).await?;
+    let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
     migration::Migrator::up(&db, None).await?;
     Ok(db)
 }

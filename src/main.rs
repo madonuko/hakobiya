@@ -15,8 +15,10 @@
 pub mod auth;
 pub mod db;
 pub mod entities;
+pub mod pages;
 
 pub use entities::prelude as orm;
+pub use rocket::fs as rfs;
 use rocket::{
     http::{Cookie, CookieJar, Status},
     response::Redirect,
@@ -31,7 +33,7 @@ async fn index(
     user: db::User,
     db: &rocket::State<sea_orm::DatabaseConnection>,
 ) -> Result<Template, Status> {
-    let db = db as &sea_orm::DatabaseConnection;
+    let db: &sea_orm::prelude::DatabaseConnection = db as &sea_orm::DatabaseConnection;
     let hevents = orm::HoldEvent::find()
         .filter(entities::hold_event::Column::Admin.eq(user.id.clone()))
         .limit(10)
@@ -71,23 +73,25 @@ async fn index(
 }
 
 #[rocket::get("/", rank = 2)]
-fn index_anonymous() -> (rocket::http::ContentType, &'static str) {
-    (
-        rocket::http::ContentType::HTML,
-        include_str!("../static/login-required.html"),
-    )
+fn index_anonymous() -> Template {
+    Template::render("login-required", rocket_dyn_templates::context! {})
 }
 
 #[rocket::get("/logout")]
 fn logout(cookies: &CookieJar<'_>) -> Redirect {
     cookies.remove(Cookie::from("username"));
     cookies.remove(Cookie::from("mail"));
-    Redirect::to("/")
+    Redirect::to(rocket::uri!(index_anonymous()))
 }
 
 #[rocket::catch(401)] // Unauthorized
 fn unauthorized_access() -> Redirect {
     Redirect::to(rocket::uri!(index_anonymous()))
+}
+
+#[rocket::catch(404)]
+fn not_found() -> Redirect {
+    Redirect::to("/404.html")
 }
 
 #[rocket::launch]
@@ -109,8 +113,10 @@ async fn rocket() -> _ {
     rocket::build()
         .manage(db)
         .attach(Template::fairing())
+        .mount("/", rfs::FileServer::from(rfs::relative!("static")))
         .mount("/", rocket::routes![index, index_anonymous, logout])
         .mount("/", auth::google::routes())
-        .register("/", rocket::catchers![unauthorized_access])
+        .register("/", rocket::catchers![unauthorized_access, not_found])
+        .mount("/events", pages::events::routes())
         .attach(OAuth2::<auth::google::GoogleUser>::fairing("google"))
 }
