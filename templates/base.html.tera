@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# https://tailwindcss.com/docs/installation/play-cdn #}
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <meta charset="utf-8" />
+    <title>Hakobiya — {% block title %}{% endblock title %}</title>
+    <style type="text/tailwindcss">
+      @layer components {
+        h2 {
+          @apply text-xl;
+        }
+        a {
+          @apply text-sky-600 visited:text-purple-600 hover:underline hover:text-sky-800;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    {% block content %}
+    {% endblock content %}
+  </body>
+</html>

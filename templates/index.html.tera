@@ -1,0 +1,37 @@
+{% extends "base" %}
+
+{% block title %} Home Page {% endblock title %}
+
+{% block content %}
+<div class="place-content-center grid h-screen place-items-center">
+  <h1 class="text-4xl">Hakobiya — Home Page</h1>
+
+  <p>User: {{ user.name }}</p>
+  <p>Mail: {{ user.mail }}</p>
+
+
+  <div class="grid-cols-2 py-6">
+    <a href="/events/create" class="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Create event</a>
+  
+    <a href="/events/join" class="rounded-md bg-indigo-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600">Join event</a>
+  </div>
+
+  <div id="hevents">
+    <h2>Events that you hold</h2>
+    <ul>
+      {% for event in hevents %}
+        <li><a href="/hevent/{{ event.id }}">{{ event.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <div id="jevents">
+    <h2>Events that you join</h2>
+    <ul>
+      {% for event in hevents %}
+        <li><a href="/jevent/{{ event.id }}">{{ event.name }}</a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock content %}
