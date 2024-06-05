@@ -1,10 +1,10 @@
 use rocket_dyn_templates::{context, Template};
-use sea_orm::ActiveModelTrait;
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::entities;
 
 pub fn routes() -> impl Into<Vec<rocket::Route>> {
-    rocket::routes![create, create_submit, join, join_submit]
+    rocket::routes![create, create_submit, join, get]
 }
 
 #[rocket::get("/create")]
@@ -40,20 +40,47 @@ async fn create_submit(
     todo!()
 }
 
-#[rocket::get("/join")]
-fn join(user: crate::db::User) -> Template {
-    Template::render(
-        "events-join",
-        context! {
-            user,
-        },
-    )
-}
 #[derive(rocket::FromForm)]
 struct PostJoin<'a> {
-    event: &'a str,
+    invite_admin: i32,
+    notes: &'a str,
 }
-#[rocket::post("/join", data = "<form>")]
-fn join_submit(form: rocket::form::Form<PostJoin<'_>>) {
+#[rocket::post("/<event>/join", data = "<form>")]
+async fn join<'a>(
+    form: rocket::form::Form<PostJoin<'a>>,
+    event: i32,
+    user: crate::db::User,
+    db: &rocket::State<sea_orm::DatabaseConnection>,
+) {
+    let db = db as &sea_orm::DatabaseConnection;
+    let jevt = entities::join_event::ActiveModel {
+        id: sea_orm::ActiveValue::NotSet,
+        user: sea_orm::ActiveValue::Set(user.id),
+        event: sea_orm::ActiveValue::Set(event),
+        invite_admin: sea_orm::ActiveValue::Set(form.invite_admin),
+        notes: sea_orm::ActiveValue::Set(form.notes.to_string()),
+    };
+    let jevt = jevt.insert(db).await.expect("Can't insert new jevent");
+    tracing::debug!(?jevt, "New JoinEvent");
+    todo!()
+}
+
+#[rocket::get("/<eventid>")]
+async fn get(
+    eventid: i32,
+    user: crate::db::User,
+    db: &rocket::State<sea_orm::DatabaseConnection>,
+) -> Template {
+    let db = db as &sea_orm::DatabaseConnection;
+    let managed_events =
+        crate::orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
+    let thisevent = managed_events
+        .filter(entities::hold_event::Column::Event.eq(eventid))
+        .one(db)
+        .await;
+    if let Some(thisevent) = thisevent.expect("can't select holdevents") {
+        // user is admin of this event
+        todo!()
+    }
     todo!()
 }

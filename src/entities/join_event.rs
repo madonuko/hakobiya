@@ -10,6 +10,9 @@ pub struct Model {
     pub id: i32,
     pub user: i32,
     pub event: i32,
+    pub invite_admin: i32,
+    #[sea_orm(column_type = "Text")]
+    pub notes: String,
 }
 
 #[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
@@ -24,23 +27,25 @@ pub enum Relation {
     Event,
     #[sea_orm(
         belongs_to = "super::user::Entity",
+        from = "Column::InviteAdmin",
+        to = "super::user::Column::Id",
+        on_update = "Cascade",
+        on_delete = "Cascade"
+    )]
+    User2,
+    #[sea_orm(
+        belongs_to = "super::user::Entity",
         from = "Column::User",
         to = "super::user::Column::Id",
         on_update = "Cascade",
         on_delete = "Cascade"
     )]
-    User,
+    User1,
 }
 
 impl Related<super::event::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Event.def()
-    }
-}
-
-impl Related<super::user::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::User.def()
     }
 }
 

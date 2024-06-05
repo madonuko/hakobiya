@@ -17,8 +17,6 @@ pub struct Model {
 pub enum Relation {
     #[sea_orm(has_many = "super::hold_event::Entity")]
     HoldEvent,
-    #[sea_orm(has_many = "super::join_event::Entity")]
-    JoinEvent,
     #[sea_orm(has_many = "super::join_sub_event::Entity")]
     JoinSubEvent,
 }
@@ -26,12 +24,6 @@ pub enum Relation {
 impl Related<super::hold_event::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::HoldEvent.def()
-    }
-}
-
-impl Related<super::join_event::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::JoinEvent.def()
     }
 }
 
