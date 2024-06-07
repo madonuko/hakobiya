@@ -1,3 +1,4 @@
+use rocket::http::Status;
 use rocket_dyn_templates::{context, Template};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
@@ -70,7 +71,7 @@ async fn get(
     eventid: i32,
     user: crate::db::User,
     db: &rocket::State<sea_orm::DatabaseConnection>,
-) -> Template {
+) -> Result<Template, Status> {
     let db = db as &sea_orm::DatabaseConnection;
     let managed_events =
         crate::orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
@@ -80,7 +81,18 @@ async fn get(
         .await;
     if let Some(thisevent) = thisevent.expect("can't select holdevents") {
         // user is admin of this event
-        todo!()
+        Ok(Template::render("events", context! { event, state: "hold" }))
+    } else {
+        let joined_events = crate::orm::JoinEvent::find().filter(entities::join_event::Column::User.eq(user.id));
+        let thisevent = joined_events.filter(entities::jion_event::Column::Event.eq(eventid)).one(db).await;
+        if let Some(thisevent) = thisevent.expect("can't select joinevents") {
+            // user has already joined this event
+            Ok(Template::render("events", context! {event, state: "join" }))
+
+        } else if let Some(event) = crate::orm::Event::find_by_id(eventid).one(db).await.expect("can't select event") {
+            Ok(Template::render("events", context! { event, state: "none" }))
+        } else {
+            Err(Status::NotFound)
+        }
     }
-    todo!()
 }
