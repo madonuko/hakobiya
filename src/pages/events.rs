@@ -1,15 +1,23 @@
 use rocket::http::Status;
+use rocket::response::Redirect;
 use rocket_dyn_templates::{context, Template};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
-use crate::entities;
+use crate::{db, entities, orm};
 
 pub fn routes() -> impl Into<Vec<rocket::Route>> {
-    rocket::routes![create, create_submit, join, get]
+    rocket::routes![
+        create,
+        create_submit,
+        join,
+        get,
+        create_subevent,
+        create_subevent_submit
+    ]
 }
 
 #[rocket::get("/create")]
-fn create(user: crate::db::User) -> Template {
+fn create(user: db::User) -> Template {
     Template::render(
         "events-create",
         context! {
@@ -50,7 +58,7 @@ struct PostJoin<'a> {
 async fn join<'a>(
     form: rocket::form::Form<PostJoin<'a>>,
     event: i32,
-    user: crate::db::User,
+    user: db::User,
     db: &rocket::State<sea_orm::DatabaseConnection>,
 ) {
     let db = db as &sea_orm::DatabaseConnection;
@@ -66,33 +74,113 @@ async fn join<'a>(
     todo!()
 }
 
+pub async fn get_evt(id: i32, db: &sea_orm::DatabaseConnection) -> Option<db::Event> {
+    crate::orm::Event::find_by_id(id)
+        .one(db)
+        .await
+        .expect("can't select event")
+}
+
 #[rocket::get("/<eventid>")]
-async fn get(
+pub async fn get(
     eventid: i32,
-    user: crate::db::User,
+    user: db::User,
     db: &rocket::State<sea_orm::DatabaseConnection>,
 ) -> Result<Template, Status> {
     let db = db as &sea_orm::DatabaseConnection;
     let managed_events =
-        crate::orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
-    let thisevent = managed_events
-        .filter(entities::hold_event::Column::Event.eq(eventid))
-        .one(db)
-        .await;
-    if let Some(thisevent) = thisevent.expect("can't select holdevents") {
+        orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
+    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(eventid));
+    if let Some(_) = thisevent.one(db).await.expect("can't select holdevents") {
         // user is admin of this event
-        Ok(Template::render("events", context! { event, state: "hold" }))
+        let event = get_evt(eventid, db)
+            .await
+            .expect("event in hevents not exist");
+        Ok(Template::render(
+            "events",
+            context! { event, state: "hold" },
+        ))
     } else {
-        let joined_events = crate::orm::JoinEvent::find().filter(entities::join_event::Column::User.eq(user.id));
-        let thisevent = joined_events.filter(entities::jion_event::Column::Event.eq(eventid)).one(db).await;
-        if let Some(thisevent) = thisevent.expect("can't select joinevents") {
+        let joined_events =
+            orm::JoinEvent::find().filter(entities::join_event::Column::User.eq(user.id));
+        let thisevent = joined_events.filter(entities::join_event::Column::Event.eq(eventid));
+        if let Some(_) = thisevent.one(db).await.expect("can't select joinevents") {
             // user has already joined this event
-            Ok(Template::render("events", context! {event, state: "join" }))
-
-        } else if let Some(event) = crate::orm::Event::find_by_id(eventid).one(db).await.expect("can't select event") {
-            Ok(Template::render("events", context! { event, state: "none" }))
+            let event = get_evt(eventid, db)
+                .await
+                .expect("event in jevents not exist");
+            Ok(Template::render(
+                "events",
+                context! { event, state: "join" },
+            ))
+        } else if let Some(event) = get_evt(eventid, db).await {
+            Ok(Template::render(
+                "events",
+                context! { event, state: "none" },
+            ))
         } else {
             Err(Status::NotFound)
         }
     }
+}
+
+#[rocket::get("/<evtid>/subevts/create")]
+async fn create_subevent(
+    user: db::User,
+    evtid: i32,
+    db: &rocket::State<sea_orm::DatabaseConnection>,
+) -> Result<Template, Result<Status, Redirect>> {
+    let managed_events =
+        crate::orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
+    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(evtid));
+    if thisevent
+        .one(db as &sea_orm::DatabaseConnection)
+        .await
+        .expect("can't select holdevents")
+        .is_none()
+    {
+        return Err(Err(Redirect::to(rocket::uri!(get(evtid)))));
+    }
+    let db = db as &sea_orm::DatabaseConnection;
+    let Some(event) = get_evt(evtid, db).await else {
+        return Err(Ok(Status::NotFound));
+    };
+    Ok(Template::render("subevt-create", context! { event }))
+}
+#[derive(rocket::FromForm)]
+struct PostSubCreate<'a> {
+    comment: &'a str,
+}
+#[rocket::post("/<evtid>/subevts/create", data = "<form>")]
+async fn create_subevent_submit<'a>(
+    user: db::User,
+    evtid: i32,
+    db: &rocket::State<sea_orm::DatabaseConnection>,
+    form: rocket::form::Form<PostSubCreate<'a>>,
+) -> Result<Template, Result<Status, Redirect>> { // help wtf is this return type
+    let db = db as &sea_orm::DatabaseConnection;
+    let managed_events =
+        orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
+    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(evtid));
+    if let None = thisevent.one(db).await.expect("can't select holdevents") {
+        // user is not admin of event
+        return Err(Ok(Status::Forbidden));
+    }
+    let new_sbevt = entities::sub_event::ActiveModel {
+        id: sea_orm::ActiveValue::NotSet,
+        event: sea_orm::ActiveValue::Set(evtid),
+        comment: sea_orm::ActiveValue::Set(form.comment.to_string()),
+    };
+    tracing::trace!(?new_sbevt, "New Subevet");
+    let sbevt = match new_sbevt.insert(db).await {
+        Ok(x) => x,
+        Err(e) => {
+            tracing::error!(?e);
+            // probably bad evtid
+            return Err(Ok(Status::NotFound));
+        }
+    };
+    Err(Err(Redirect::to(rocket::uri!(super::subevents::get(
+        evtid, sbevt.id
+    )))))
 }

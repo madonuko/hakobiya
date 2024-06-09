@@ -28,6 +28,8 @@ pub use entities::user::Model as User;
 
 use crate::entities;
 
+pub type DbConn = sea_orm::DatabaseConnection;
+pub type DbConnGuard = rocket::State<DbConn>;
 static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
     std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined")
 });
