@@ -91,3 +91,10 @@ pub(super) async fn set_up_db() -> Result<sea_orm::DatabaseConnection, sea_orm::
     migration::Migrator::up(&db, None).await?;
     Ok(db)
 }
+
+pub async fn as_event_admin(db: &DbConn, user: &User, evtid: i32) -> Option<HoldEvent> {
+    let hevt = crate::orm::HoldEvent::find()
+        .filter(entities::hold_event::Column::Admin.eq(user.id))
+        .filter(entities::hold_event::Column::Event.eq(evtid));
+    hevt.one(db).await.expect("can't select holdevents")
+}

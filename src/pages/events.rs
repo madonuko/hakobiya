@@ -32,9 +32,9 @@ struct PostCreate<'a> {
 #[rocket::post("/create", data = "<form>")]
 async fn create_submit(
     form: rocket::form::Form<PostCreate<'_>>,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
+    db: &db::DbConnGuard,
 ) {
-    let db: &sea_orm::prelude::DatabaseConnection = db as &sea_orm::DatabaseConnection;
+    let db = db as &db::DbConn;
     let new_event = entities::event::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         name: sea_orm::ActiveValue::Set(form.name.to_string()),
@@ -85,13 +85,10 @@ pub async fn get_evt(id: i32, db: &sea_orm::DatabaseConnection) -> Option<db::Ev
 pub async fn get(
     eventid: i32,
     user: db::User,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
+    db: &db::DbConnGuard,
 ) -> Result<Template, Status> {
-    let db = db as &sea_orm::DatabaseConnection;
-    let managed_events =
-        orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
-    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(eventid));
-    if let Some(_) = thisevent.one(db).await.expect("can't select holdevents") {
+    let db = db as &db::DbConn;
+    if db::as_event_admin(db, &user, eventid).await.is_some() {
         // user is admin of this event
         let event = get_evt(eventid, db)
             .await
@@ -128,20 +125,12 @@ pub async fn get(
 async fn create_subevent(
     user: db::User,
     evtid: i32,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
+    db: &db::DbConnGuard,
 ) -> Result<Template, Result<Status, Redirect>> {
-    let managed_events =
-        crate::orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
-    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(evtid));
-    if thisevent
-        .one(db as &sea_orm::DatabaseConnection)
-        .await
-        .expect("can't select holdevents")
-        .is_none()
-    {
+    let db = db as &db::DbConn;
+    if db::as_event_admin(db, &user, evtid).await.is_none() {
         return Err(Err(Redirect::to(rocket::uri!(get(evtid)))));
     }
-    let db = db as &sea_orm::DatabaseConnection;
     let Some(event) = get_evt(evtid, db).await else {
         return Err(Ok(Status::NotFound));
     };
@@ -155,15 +144,12 @@ struct PostSubCreate<'a> {
 async fn create_subevent_submit<'a>(
     user: db::User,
     evtid: i32,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
+    db: &db::DbConnGuard,
     form: rocket::form::Form<PostSubCreate<'a>>,
-) -> Result<Template, Result<Status, Redirect>> { // help wtf is this return type
-    let db = db as &sea_orm::DatabaseConnection;
-    let managed_events =
-        orm::HoldEvent::find().filter(entities::hold_event::Column::Admin.eq(user.id));
-    let thisevent = managed_events.filter(entities::hold_event::Column::Event.eq(evtid));
-    if let None = thisevent.one(db).await.expect("can't select holdevents") {
-        // user is not admin of event
+) -> Result<Template, Result<Status, Redirect>> {
+    // help wtf is this return type
+    let db = db as &db::DbConn;
+    if db::as_event_admin(db, &user, evtid).await.is_none() {
         return Err(Ok(Status::Forbidden));
     }
     let new_sbevt = entities::sub_event::ActiveModel {
