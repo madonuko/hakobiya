@@ -1,6 +1,6 @@
 use rocket::{http::Status, response::Redirect};
 use rocket_dyn_templates::{context, Template};
-use sea_orm::{ColumnTrait, EntityTrait, QueryFilter};
+use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
 use crate::{db, entities, orm};
 
@@ -59,7 +59,31 @@ async fn scanned(
     db: &db::DbConnGuard,
     form: rocket::form::Form<FormSubmit>,
 ) -> Status {
-    todo!()
+    let db = db as &db::DbConn;
+    if db::as_event_admin(db, &user, evtid).await.is_none() {
+        return Status::Forbidden;
+    }
+    let jevt = orm::JoinEvent::find()
+        .filter(entities::join_event::Column::Event.eq(evtid))
+        .filter(entities::join_event::Column::User.eq(form.uid));
+    let Some(_) = jevt.one(db).await.expect("can't select joinevents") else {
+        return Status::NotFound;
+    };
+    if let None = orm::SubEvent::find_by_id(id)
+        .one(db)
+        .await
+        .expect("can't select subevents")
+    {
+        return Status::NotFound;
+    }
+    let model = entities::join_sub_event::ActiveModel {
+        id: sea_orm::ActiveValue::NotSet,
+        sub_event: sea_orm::ActiveValue::Set(id),
+        user: sea_orm::ActiveValue::Set(form.uid),
+        scanned: sea_orm::ActiveValue::Set(true),
+    };
+    model.insert(db).await.expect("can't insert joinsubevents");
+    Status::NoContent
 }
 
 #[rocket::get("/<evtid>/subevts/user/<uid>")]
