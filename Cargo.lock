@@ -1330,6 +1330,7 @@ dependencies = [
  "image",
  "migration",
  "once_cell",
+ "paste",
  "qrcode",
  "reqwest",
  "rocket",

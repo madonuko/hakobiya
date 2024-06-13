@@ -47,10 +47,7 @@ impl<'r> request::FromRequest<'r> for User {
             .get_private("username")
             .zip(cookies.get_private("mail"))
         {
-            let db = request
-                .guard::<&DbConnGuard>()
-                .await
-                .expect("get db");
+            let db = request.guard::<&DbConnGuard>().await.expect("get db");
             let db = db as &sea_orm::DatabaseConnection;
             let (name, mail) = (username.value().to_string(), mail.value().to_string());
             let Some(user) = crate::orm::User::find()
@@ -92,9 +89,53 @@ pub(super) async fn set_up_db() -> Result<sea_orm::DatabaseConnection, sea_orm::
     Ok(db)
 }
 
+#[macro_export]
+macro_rules! setup_db {
+    ($db:ident) => {
+        let $db = $db as &$crate::db::DbConn;
+        macro_rules! db {
+            () => {
+                $db
+            };
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! select {
+    ($(@$db:ident:)?$table:ident$(($id:expr))?$([$($col:ident = $val:expr),+$(,)?]@$method:ident)?) => { paste::paste! {{
+        $(setup_db!($db);)?
+        $(
+            $crate::orm::$table::find_by_id($id).one(db!())
+        )?
+        $(
+            $crate::orm::$table::find()
+            $(
+                .filter($crate::entities::[<$table:snake>]::Column::[<$col:camel>].eq($val))
+            )+
+                .$method(db!())
+        )?
+            .await
+            .expect(concat!("can't select ", stringify!([<$table:lower>])))
+    }}};
+}
+
+#[macro_export]
+macro_rules! insert {
+    (#$field:ident) => { ::sea_orm::ActiveValue::Set($field) };
+    (#$field:ident: $val:expr) => { ::sea_orm::ActiveValue::Set($val) };
+    (#[$field:ident]) => { ::sea_orm::ActiveValue::NotSet };
+    (~$res:ident~) => { $res };
+    (~$res:ident) => { $res.expect(concat!("can't insert ", stringify!([<$table:lower>]))) };
+    ($table:ident {$($([$notsetfield:ident])?$($field:ident$(:$val:expr)?)?$(,)?),*}$($asciicircum:tt)?) => { paste::paste! {{
+        let res = $crate::entities::[<$table:snake>]::ActiveModel {$(
+            $($notsetfield)?$($field)?: $crate::insert!(#$([$notsetfield])?$($field$(:$val)?)?)
+        ),*}.insert(db!()).await;
+        ::tracing::trace!(?res, concat!("New ", stringify!([<$table:camel>])));
+        $crate::insert!(~res$($asciicircum)?)
+    }}};
+}
+
 pub async fn as_event_admin(db: &DbConn, user: &User, evtid: i32) -> Option<HoldEvent> {
-    let hevt = crate::orm::HoldEvent::find()
-        .filter(entities::hold_event::Column::Admin.eq(user.id))
-        .filter(entities::hold_event::Column::Event.eq(evtid));
-    hevt.one(db).await.expect("can't select holdevents")
+    select!(@db: HoldEvent[admin = user.id, event = evtid]@one)
 }

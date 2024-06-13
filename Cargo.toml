@@ -27,3 +27,4 @@ tracing = "0.1.40"
 tracing-logfmt = "0.3.4"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 migration = { path = "migration/" }
+paste = "1.0.15"

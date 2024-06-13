@@ -2,9 +2,7 @@ use rocket::{http::Status, response::Redirect};
 use rocket_dyn_templates::{context, Template};
 use sea_orm::{ActiveModelTrait, ColumnTrait, EntityTrait, QueryFilter};
 
-use crate::{db, entities, orm};
-
-use super::events::get_evt;
+use crate::{db, insert, select, setup_db};
 
 pub fn routes() -> impl Into<Vec<rocket::Route>> {
     rocket::routes![get, get_user, scanned]
@@ -17,18 +15,14 @@ pub async fn get(
     id: i32,
     db: &db::DbConnGuard,
 ) -> Result<Template, (Status, Redirect)> {
-    let db = db as &db::DbConn;
-    let jevt = orm::JoinEvent::find()
-        .filter(entities::join_event::Column::User.eq(user.id))
-        .filter(entities::join_event::Column::Event.eq(evtid));
-    let event = get_evt(evtid, db)
-        .await
-        .expect("event in hevents not exist");
-    let Some(subevt) = orm::SubEvent::find_by_id(id)
-        .one(db)
-        .await
-        .expect("can't select subevent")
-    else {
+    setup_db!(db);
+    let Some(event) = select!(Event(evtid)) else {
+        return Err((
+            Status::NotFound,
+            Redirect::to(rocket::uri!("/")),
+        ));
+    };
+    let Some(subevt) = select!(SubEvent(id)) else {
         return Err((
             Status::NotFound,
             Redirect::to(rocket::uri!(super::events::get(evtid))),
@@ -36,13 +30,13 @@ pub async fn get(
     };
     let state = if db::as_event_admin(db, &user, evtid).await.is_some() {
         "admin"
-    } else if let Some(_) = jevt.one(db).await.expect("can't select joinevents") {
+    } else if let Some(_) = select!(JoinEvent[user=user.id, event=evtid]@one) {
         "join"
     } else {
         return Err((Status::Forbidden, Redirect::to(rocket::uri!("/"))));
     };
     Ok(Template::render(
-        "subevents",
+        "subevent",
         context! { event, subevt, state },
     ))
 }
@@ -59,30 +53,22 @@ async fn scanned(
     db: &db::DbConnGuard,
     form: rocket::form::Form<FormSubmit>,
 ) -> Status {
-    let db = db as &db::DbConn;
+    setup_db!(db);
     if db::as_event_admin(db, &user, evtid).await.is_none() {
         return Status::Forbidden;
     }
-    let jevt = orm::JoinEvent::find()
-        .filter(entities::join_event::Column::Event.eq(evtid))
-        .filter(entities::join_event::Column::User.eq(form.uid));
-    let Some(_) = jevt.one(db).await.expect("can't select joinevents") else {
+    let Some(_) = select!(JoinEvent[event=evtid, user=form.uid]@one) else {
         return Status::NotFound;
     };
-    if let None = orm::SubEvent::find_by_id(id)
-        .one(db)
-        .await
-        .expect("can't select subevents")
-    {
+    if let None = select!(SubEvent(id)) {
         return Status::NotFound;
     }
-    let model = entities::join_sub_event::ActiveModel {
-        id: sea_orm::ActiveValue::NotSet,
-        sub_event: sea_orm::ActiveValue::Set(id),
-        user: sea_orm::ActiveValue::Set(form.uid),
-        scanned: sea_orm::ActiveValue::Set(true),
-    };
-    model.insert(db).await.expect("can't insert joinsubevents");
+    insert!(JoinSubEvent {
+        [id],
+        sub_event: id,
+        user: form.uid,
+        scanned: true
+    });
     Status::NoContent
 }
 
@@ -93,14 +79,11 @@ async fn get_user(
     uid: i32,
     db: &db::DbConnGuard,
 ) -> Result<Template, (Status, Redirect)> {
-    let db = db as &db::DbConn;
+    setup_db!(db);
     if db::as_event_admin(db, &user, evtid).await.is_none() {
         return Err((Status::Forbidden, Redirect::to(rocket::uri!("/"))));
     }
-    let jevt = orm::JoinEvent::find()
-        .filter(entities::join_event::Column::Event.eq(evtid))
-        .filter(entities::join_event::Column::User.eq(uid));
-    let Some(jevt) = jevt.one(db).await.expect("can't select joinevents") else {
+    let Some(jevt) = select!(JoinEvent[event=evtid, user=uid]@one) else {
         return Err((
             Status::NotFound,
             Redirect::to(rocket::uri!(super::events::get(evtid))),

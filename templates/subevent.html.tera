@@ -1,0 +1,30 @@
+{% extends "base" %}
+
+{% block title %} Subevent {{ sbevt.name }} ({{ event.name }}) {% endblock title %}
+
+{% block content %}
+<h1>Subevent: <b>{{ sbevt.name }}</b> (in event <b>{{ event.name }}</b>)</h1>
+<p>Your role in this event: {{ state }}</p>
+<hr>
+
+{% if state == "admin" %}
+<button href="./subevts/create">Create a new subevent</button>
+{% endif %}
+
+{% if state == "admin" or state == "join" %}
+
+{% if sbevts | length == 0 %}
+<p>There are current no subevents.</p>
+{% else %}
+<h3>Subevents</h3>
+<ul>
+  {% for sbevt in sbevts %}
+  <li><a href="./subevts/{{ sbevt.id }}"><b>{{ sbevt.name }}</b> ({{ sbevt.comment }})</a></li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+{% else %}
+<p>You need to be invited to this event in order to see the details.</p>
+{% endif %}
+{% endblock content %}
