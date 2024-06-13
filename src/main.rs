@@ -31,7 +31,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 #[rocket::get("/")]
 async fn index(
     user: db::User,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
+    db: &db::DbConnGuard,
 ) -> Result<Template, Status> {
     let db: &sea_orm::prelude::DatabaseConnection = db as &sea_orm::DatabaseConnection;
     let hevents = orm::HoldEvent::find()

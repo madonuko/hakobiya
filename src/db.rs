@@ -48,7 +48,7 @@ impl<'r> request::FromRequest<'r> for User {
             .zip(cookies.get_private("mail"))
         {
             let db = request
-                .guard::<&rocket::State<sea_orm::DatabaseConnection>>()
+                .guard::<&DbConnGuard>()
                 .await
                 .expect("get db");
             let db = db as &sea_orm::DatabaseConnection;

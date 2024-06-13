@@ -30,10 +30,7 @@ struct PostCreate<'a> {
     name: &'a str,
 }
 #[rocket::post("/create", data = "<form>")]
-async fn create_submit(
-    form: rocket::form::Form<PostCreate<'_>>,
-    db: &db::DbConnGuard,
-) {
+async fn create_submit(form: rocket::form::Form<PostCreate<'_>>, db: &db::DbConnGuard) -> Redirect {
     let db = db as &db::DbConn;
     let new_event = entities::event::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
@@ -45,8 +42,7 @@ async fn create_submit(
         .await
         .expect("cannot insert new event into db");
     tracing::info!(?evt, "Created new event");
-    // redirect to something like "new-event-created.html.tera"
-    todo!()
+    Redirect::to(rocket::uri!(get(evt.id)))
 }
 
 #[derive(rocket::FromForm)]
@@ -59,9 +55,9 @@ async fn join<'a>(
     form: rocket::form::Form<PostJoin<'a>>,
     event: i32,
     user: db::User,
-    db: &rocket::State<sea_orm::DatabaseConnection>,
-) {
-    let db = db as &sea_orm::DatabaseConnection;
+    db: &db::DbConnGuard,
+) -> Redirect {
+    let db = db as &db::DbConn;
     let jevt = entities::join_event::ActiveModel {
         id: sea_orm::ActiveValue::NotSet,
         user: sea_orm::ActiveValue::Set(user.id),
@@ -71,7 +67,7 @@ async fn join<'a>(
     };
     let jevt = jevt.insert(db).await.expect("Can't insert new jevent");
     tracing::debug!(?jevt, "New JoinEvent");
-    todo!()
+    Redirect::to(rocket::uri!(get(event)))
 }
 
 pub async fn get_evt(id: i32, db: &sea_orm::DatabaseConnection) -> Option<db::Event> {
@@ -82,20 +78,18 @@ pub async fn get_evt(id: i32, db: &sea_orm::DatabaseConnection) -> Option<db::Ev
 }
 
 #[rocket::get("/<eventid>")]
-pub async fn get(
-    eventid: i32,
-    user: db::User,
-    db: &db::DbConnGuard,
-) -> Result<Template, Status> {
+pub async fn get(eventid: i32, user: db::User, db: &db::DbConnGuard) -> Result<Template, Status> {
     let db = db as &db::DbConn;
     if db::as_event_admin(db, &user, eventid).await.is_some() {
         // user is admin of this event
         let event = get_evt(eventid, db)
             .await
             .expect("event in hevents not exist");
+        let sbevts = orm::SubEvent::find().filter(entities::sub_event::Column::Event.eq(eventid));
+        let sbevts = sbevts.all(db).await.expect("can't select subevents");
         Ok(Template::render(
             "events",
-            context! { event, state: "hold" },
+            context! { event, sbevts, state: "admin" },
         ))
     } else {
         let joined_events =
@@ -157,7 +151,7 @@ async fn create_subevent_submit<'a>(
         event: sea_orm::ActiveValue::Set(evtid),
         comment: sea_orm::ActiveValue::Set(form.comment.to_string()),
     };
-    tracing::trace!(?new_sbevt, "New Subevet");
+    tracing::trace!(?new_sbevt, "New Subevent");
     let sbevt = match new_sbevt.insert(db).await {
         Ok(x) => x,
         Err(e) => {
