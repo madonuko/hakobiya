@@ -103,17 +103,15 @@ macro_rules! setup_db {
 
 #[macro_export]
 macro_rules! select {
-    ($(@$db:ident:)?$table:ident$(($id:expr))?$([$($col:ident = $val:expr),+$(,)?]@$method:ident)?) => { paste::paste! {{
+    ($(@$db:ident:)?$table:ident$(($id:expr))?$([$($col:ident = $val:expr),+$(,)?]@$($method:tt)+)?) => { paste::paste! {{
         $(setup_db!($db);)?
-        $(
-            $crate::orm::$table::find_by_id($id).one(db!())
-        )?
+        $( $crate::orm::$table::find_by_id($id).one(db!()) )?
         $(
             $crate::orm::$table::find()
             $(
                 .filter($crate::entities::[<$table:snake>]::Column::[<$col:camel>].eq($val))
             )+
-                .$method(db!())
+                .$($method)+(db!())
         )?
             .await
             .expect(concat!("can't select ", stringify!([<$table:lower>])))
@@ -125,17 +123,15 @@ macro_rules! insert {
     (#$field:ident) => { ::sea_orm::ActiveValue::Set($field) };
     (#$field:ident: $val:expr) => { ::sea_orm::ActiveValue::Set($val) };
     (#[$field:ident]) => { ::sea_orm::ActiveValue::NotSet };
-    (~$res:ident~) => { $res };
-    (~$res:ident) => { $res.expect(concat!("can't insert ", stringify!([<$table:lower>]))) };
     ($table:ident {$($([$notsetfield:ident])?$($field:ident$(:$val:expr)?)?$(,)?),*}$($asciicircum:tt)?) => { paste::paste! {{
-        let res = $crate::entities::[<$table:snake>]::ActiveModel {$(
+        let insert = $crate::entities::[<$table:snake>]::ActiveModel {$(
             $($notsetfield)?$($field)?: $crate::insert!(#$([$notsetfield])?$($field$(:$val)?)?)
-        ),*}.insert(db!()).await;
-        ::tracing::trace!(?res, concat!("New ", stringify!([<$table:camel>])));
-        $crate::insert!(~res$($asciicircum)?)
+        ),*};
+        ::tracing::debug!(?insert, concat!("Inserting new ", stringify!([<$table:camel>])));
+        insert.insert(db!()).await.expect(concat!("can't insert ", stringify!([<$table:lower>])))
     }}};
 }
 
 pub async fn as_event_admin(db: &DbConn, user: &User, evtid: i32) -> Option<HoldEvent> {
-    select!(@db: HoldEvent[admin = user.id, event = evtid]@one)
+    select!(@db: HoldEvent[admin=user.id, event=evtid]@one)
 }

@@ -29,34 +29,21 @@ use sea_orm::{ColumnTrait, EntityTrait, QueryFilter, QuerySelect};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[rocket::get("/")]
-async fn index(
-    user: db::User,
-    db: &db::DbConnGuard,
-) -> Result<Template, Status> {
-    let db: &sea_orm::prelude::DatabaseConnection = db as &sea_orm::DatabaseConnection;
-    let hevents = orm::HoldEvent::find()
-        .filter(entities::hold_event::Column::Admin.eq(user.id.clone()))
-        .limit(10)
-        .all(db)
-        .await
-        .expect("find all user holdevents");
+async fn index(user: db::User, db: &db::DbConnGuard) -> Result<Template, Status> {
+    setup_db!(db);
+    let hevents = select!(HoldEvent[admin=user.id]@limit(10).all);
     let mut new_hevents = vec![];
     for hevent in hevents {
-        let Ok(Some(hevent)) = orm::Event::find_by_id(hevent.event).one(db).await else {
+        let Some(hevent) = select!(Event(hevent.event)) else {
             tracing::error!(?hevent, "Cannot get HoldEvent");
             return Err(Status::InternalServerError);
         };
         new_hevents.push(hevent);
     }
-    let jevents = orm::JoinEvent::find()
-        .filter(entities::join_event::Column::User.eq(user.id.clone()))
-        .limit(10)
-        .all(db)
-        .await
-        .expect("find all user joinevents");
+    let jevents = select!(JoinEvent[user=user.id]@limit(10).all);
     let mut new_jevents = vec![];
     for jevent in jevents {
-        let Ok(Some(jevent)) = orm::Event::find_by_id(jevent.event).one(db).await else {
+        let Some(jevent) = select!(Event(jevent.event)) else {
             tracing::error!(?jevent, "Cannot get JoinEvent");
             return Err(Status::InternalServerError);
         };
@@ -118,5 +105,6 @@ async fn rocket() -> _ {
         .mount("/", auth::google::routes())
         .register("/", rocket::catchers![unauthorized_access, not_found])
         .mount("/events", pages::events::routes())
+        .mount("/events", pages::subevents::routes())
         .attach(OAuth2::<auth::google::GoogleUser>::fairing("google"))
 }

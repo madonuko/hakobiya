@@ -66,26 +66,17 @@ async fn join<'a>(
     Redirect::to(rocket::uri!(get(event)))
 }
 
-#[deprecated]
-pub async fn get_evt(id: i32, db: &sea_orm::DatabaseConnection) -> Option<db::Event> {
-    crate::orm::Event::find_by_id(id)
-        .one(db)
-        .await
-        .expect("can't select event")
-}
-
 #[rocket::get("/<eventid>")]
 pub async fn get(eventid: i32, user: db::User, db: &db::DbConnGuard) -> Result<Template, Status> {
     setup_db!(db);
     let Some(event) = select!(Event(eventid)) else {
         return Err(Status::NotFound);
     };
-    let sbevts = select!(SubEvent[event=eventid]@all);
     Ok(Template::render(
         "events",
         context! {
             event,
-            sbevts,
+            sbevts: select!(SubEvent[event=eventid]@all),
             state: if db::as_event_admin(db, &user, eventid).await.is_some() {
                 "admin"
             } else if select!(JoinEvent[user=user.id]@one).is_some() {
@@ -125,19 +116,13 @@ async fn create_subevent_submit<'a>(
 ) -> Result<Template, Result<Status, Redirect>> {
     // help wtf is this return type
     setup_db!(db);
+    if select!(Event(evtid)).is_none() {
+        return Err(Ok(Status::NotFound));
+    }
     if db::as_event_admin(db, &user, evtid).await.is_none() {
         return Err(Ok(Status::Forbidden));
     }
-    // FIXME
-    let new_sbevt = insert!(SubEvent { [id], event: evtid, comment: form.comment.to_string() }~);
-    let sbevt = match new_sbevt {
-        Ok(x) => x,
-        Err(e) => {
-            tracing::error!(?e);
-            // probably bad evtid
-            return Err(Ok(Status::NotFound));
-        }
-    };
+    let sbevt = insert!(SubEvent { [id], event: evtid, comment: form.comment.to_string() });
     Err(Err(Redirect::to(rocket::uri!(super::subevents::get(
         evtid, sbevt.id
     )))))

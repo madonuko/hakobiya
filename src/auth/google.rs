@@ -38,9 +38,7 @@ async fn google_callback(
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Status> {
     let user_info: GoogleUser = match reqwest::Client::new()
-        .get(format!(
-            "https://www.googleapis.com/oauth2/v1/userinfo?alt=json",
-        ))
+        .get("https://www.googleapis.com/oauth2/v1/userinfo?alt=json".to_string())
         .bearer_auth(token.access_token())
         .send()
         .await

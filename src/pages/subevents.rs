@@ -17,10 +17,7 @@ pub async fn get(
 ) -> Result<Template, (Status, Redirect)> {
     setup_db!(db);
     let Some(event) = select!(Event(evtid)) else {
-        return Err((
-            Status::NotFound,
-            Redirect::to(rocket::uri!("/")),
-        ));
+        return Err((Status::NotFound, Redirect::to(rocket::uri!("/"))));
     };
     let Some(subevt) = select!(SubEvent(id)) else {
         return Err((
@@ -30,7 +27,7 @@ pub async fn get(
     };
     let state = if db::as_event_admin(db, &user, evtid).await.is_some() {
         "admin"
-    } else if let Some(_) = select!(JoinEvent[user=user.id, event=evtid]@one) {
+    } else if select!(JoinEvent[user=user.id, event=evtid]@one).is_some() {
         "join"
     } else {
         return Err((Status::Forbidden, Redirect::to(rocket::uri!("/"))));
@@ -60,7 +57,7 @@ async fn scanned(
     let Some(_) = select!(JoinEvent[event=evtid, user=form.uid]@one) else {
         return Status::NotFound;
     };
-    if let None = select!(SubEvent(id)) {
+    if select!(SubEvent(id)).is_none() {
         return Status::NotFound;
     }
     insert!(JoinSubEvent {
