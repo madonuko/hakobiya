@@ -1,0 +1,14 @@
+{% extends "base" %}
+
+{% block title %} Subevent {{ sbevt.name }} ({{ event.name }}) {% endblock title %}
+
+{% block content %}
+<h2>User <b>{{ user.name }}</b></h2>
+<hr>
+
+<p>
+	<h3>Notes</h3>
+	{{ jevt.notes }}
+</p>
+
+{% endblock content %}

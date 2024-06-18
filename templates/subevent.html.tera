@@ -7,7 +7,10 @@
 <p>Your role in this event: {{ state }}</p>
 <hr>
 
-{% if state == "admin" %}
+{# should have qr scanner? #}
+
+
+{# {% if state == "admin" %}
 <button href="./subevts/create">Create a new subevent</button>
 {% endif %}
 
@@ -26,5 +29,5 @@
 
 {% else %}
 <p>You need to be invited to this event in order to see the details.</p>
-{% endif %}
+{% endif %} #}
 {% endblock content %}

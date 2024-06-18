@@ -86,5 +86,8 @@ async fn get_user(
             Redirect::to(rocket::uri!(super::events::get(evtid))),
         ));
     };
+    let Some(user) = select!(User(jevt.user)) else {
+        return Err((Status::NotFound, Redirect::to(rocket::uri!(super::events::get(evtid)))));
+    };
     Ok(Template::render("subevt-user", context! { user, jevt }))
 }
