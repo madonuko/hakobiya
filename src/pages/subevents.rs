@@ -25,8 +25,18 @@ pub async fn get(
             Redirect::to(rocket::uri!(super::events::get(evtid))),
         ));
     };
+    let mut jsevts = select!(JoinSubEvent[sub_event=subevt.id]@all);
+    jsevts.sort_by(|a, b| a.scanned.cmp(&b.scanned));
     let state = if db::as_event_admin(db, &user, evtid).await.is_some() {
-        "admin"
+        let mut new_jsevts = vec![];
+        for jsevt in jsevts {
+            let user = select!(User(jsevt.user)).expect("User not found in jsevt");
+            new_jsevts.push((user, jsevt));
+        }
+        return Ok(Template::render(
+            "subevent",
+            context! { event, subevt, state: "admin", jsevts: new_jsevts },
+        ));
     } else if select!(JoinEvent[user=user.id, event=evtid]@one).is_some() {
         "join"
     } else {
@@ -34,7 +44,7 @@ pub async fn get(
     };
     Ok(Template::render(
         "subevent",
-        context! { event, subevt, state },
+        context! { event, subevt, state, jsevts },
     ))
 }
 
@@ -87,7 +97,10 @@ async fn get_user(
         ));
     };
     let Some(user) = select!(User(jevt.user)) else {
-        return Err((Status::NotFound, Redirect::to(rocket::uri!(super::events::get(evtid)))));
+        return Err((
+            Status::NotFound,
+            Redirect::to(rocket::uri!(super::events::get(evtid))),
+        ));
     };
     Ok(Template::render("subevt-user", context! { user, jevt }))
 }

@@ -7,6 +7,15 @@
 <p>Your role in this event: {{ state }}</p>
 <hr>
 
+
+{% if state == "admin" %}
+<div>
+  <h3>Participants</h3>
+  <table>
+    <th>Name</th>
+    <th>Scanned</th>
+  </table>
+</div>
 {# should have qr scanner? #}
 
 
