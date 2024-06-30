@@ -30,9 +30,6 @@ use crate::entities;
 
 pub type DbConn = sea_orm::DatabaseConnection;
 pub type DbConnGuard = rocket::State<DbConn>;
-static DATABASE_URL: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
-    std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined")
-});
 
 #[rocket::async_trait]
 impl<'r> request::FromRequest<'r> for User {
@@ -73,18 +70,10 @@ impl<'r> request::FromRequest<'r> for User {
 }
 
 pub(super) async fn set_up_db() -> Result<sea_orm::DatabaseConnection, sea_orm::DbErr> {
-    // let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
-    // create db if not exists
-    // db.execute(sea_orm::Statement::from_string(
-    //     db.get_database_backend(),
-    //     format!(
-    //         r#"SELECT 'CREATE DATABASE {DB_NAME}'
-    //     WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{DB_NAME}')\gexec"#
-    //     ),
-    // ))
-    // .await?;
-
-    let db = sea_orm::Database::connect(&*DATABASE_URL).await?;
+    let db = sea_orm::Database::connect(
+        &std::env::var("DATABASE_URL").expect("$DATABASE_URL not defined"),
+    )
+    .await?;
     migration::Migrator::up(&db, None).await?;
     Ok(db)
 }

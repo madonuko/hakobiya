@@ -1329,7 +1329,6 @@ dependencies = [
  "dotenv",
  "image",
  "migration",
- "once_cell",
  "paste",
  "qrcode",
  "reqwest",
