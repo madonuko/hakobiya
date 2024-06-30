@@ -43,13 +43,10 @@ async fn google_callback(
         .send()
         .await
     {
-        Ok(res) => match res.json().await {
-            Ok(user_info) => user_info,
-            Err(e) => {
-                error!(?e, "Cannot turn user_info as json");
-                return Err(Status::InternalServerError);
-            }
-        },
+        Ok(res) => res.json().await.map_err(|e| {
+            error!(?e, "Cannot turn user_info as json");
+            Status::InternalServerError
+        })?,
         Err(e) => {
             error!(?e, "Cannot get request from google oauth2 userinfo api");
             return Err(Status::Unauthorized);
