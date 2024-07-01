@@ -1,0 +1,42 @@
+name: Code Coverage Reports
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - uses: actions-rs/toolchain@v1
+      with:
+        toolchain: nightly
+        override: true    
+    - name: cargo test
+      run: cargo test
+      env:
+        CARGO_INCREMENTAL: '0'
+        RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests -Cllvm-args=--inline-threshold=0'
+        RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests -Cllvm-args=--inline-threshold=0'
+    - name: rust-grcov
+      uses: actions-rs/grcov@bb47b1ed7883a1502fa6875d562727ace2511248
+      with:
+        output-type: lcov
+        output-path: ./lcov.info
+        prefix-dir: /tmp/grcovs/
+    - name: Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        verbose: true
+        fail_ci_if_error: true
+        files: /tmp/grcovs/*.lcov
+        flags: ubuntu_latest
